@@ -73,10 +73,10 @@ public final class SettingsViewModel {
             Telemetry.send(.hotkeyCustomized)
         }
     }
-    public var translateHotkeyTrigger: HotkeyTrigger {
+    public var translateHotkeyConfigs: [TranslateHotkeyConfig] {
         didSet {
-            translateHotkeyTrigger.save(to: defaults, forKey: AppPreferences.translateHotkeyTriggerKey)
-            NotificationCenter.default.post(name: Notification.Name("macparakeet.translateHotkeyTriggerDidChange"), object: nil)
+            saveTranslateHotkeyConfigs()
+            NotificationCenter.default.post(name: Notification.Name("macparakeet.translateHotkeyConfigsDidChange"), object: nil)
             Telemetry.send(.hotkeyCustomized)
         }
     }
@@ -182,8 +182,13 @@ public final class SettingsViewModel {
         showIdlePill = defaults.object(forKey: "showIdlePill") as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
-        translateHotkeyTrigger = HotkeyTrigger.load(from: defaults, forKey: AppPreferences.translateHotkeyTriggerKey)
-            ?? .chord(modifiers: ["option"], keyCode: 17)
+        if let data = defaults.data(forKey: AppPreferences.translateHotkeyConfigsKey),
+           let configs = try? JSONDecoder().decode([TranslateHotkeyConfig].self, from: data),
+           !configs.isEmpty {
+            translateHotkeyConfigs = configs
+        } else {
+            translateHotkeyConfigs = AppPreferences.defaultTranslateHotkeyConfigs()
+        }
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
@@ -510,6 +515,35 @@ public final class SettingsViewModel {
         defaults.set(status.isEnabled, forKey: "launchAtLogin")
         isApplyingLaunchAtLoginState = false
         launchAtLoginDetail = status.detailText
+    }
+
+    private func saveTranslateHotkeyConfigs() {
+        if let data = try? JSONEncoder().encode(translateHotkeyConfigs) {
+            defaults.set(data, forKey: AppPreferences.translateHotkeyConfigsKey)
+        }
+    }
+
+    public func updateTranslateHotkeyConfig(id: UUID, trigger: HotkeyTrigger? = nil, targetLanguage: String? = nil) {
+        if let idx = translateHotkeyConfigs.firstIndex(where: { $0.id == id }) {
+            if let trigger = trigger {
+                translateHotkeyConfigs[idx].trigger = trigger
+            }
+            if let targetLanguage = targetLanguage {
+                translateHotkeyConfigs[idx].targetLanguage = targetLanguage
+            }
+        }
+    }
+
+    public func addTranslateHotkeyConfig() {
+        let newConfig = TranslateHotkeyConfig(
+            trigger: .chord(modifiers: ["control"], keyCode: 18),
+            targetLanguage: "en"
+        )
+        translateHotkeyConfigs.append(newConfig)
+    }
+
+    public func removeTranslateHotkeyConfig(id: UUID) {
+        translateHotkeyConfigs.removeAll { $0.id == id }
     }
 
     private func runWithRetry(

@@ -495,7 +495,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.dictationFlowCoordinator?.stopDictation()
         }
         translateHotkeyManager?.onCancelRecording = { [weak self] in
-            self?.dictationFlowCoordinator?.cancelDictation()
+            self?.dictationFlowCoordinator?.cancelDictation(reason: .escape)
         }
         translateHotkeyManager?.onReadyForSecondTap = { [weak self] in
             self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .hotkeyTranslate)
@@ -503,7 +503,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         translateHotkeyManager?.onEscapeWhileIdle = { [weak self] in
             self?.dictationFlowCoordinator?.dismissOverlayIfError()
         }
-        translateHotkeyManager?.start()
+        if translateHotkeyManager?.start() == true {
+            // success
+        } else {
+            translateHotkeyManager = nil
+        }
     }
 
     private func refreshHotkeyAfterPermissions() {

@@ -281,6 +281,34 @@ public struct HotkeyTrigger: Sendable {
             defaults.set(data, forKey: Self.defaultsKey)
         }
     }
+
+    /// Persist this trigger to the given defaults store as JSON using a custom key.
+    public func save(to defaults: UserDefaults, forKey key: String) {
+        if let data = try? JSONEncoder().encode(self) {
+            defaults.set(data, forKey: key)
+        }
+    }
+
+    /// Resolve a trigger from the provided defaults store using the given key.
+    /// Tries JSON decode first, falls back to legacy string, returns nil if nothing stored.
+    public static func load(from defaults: UserDefaults, forKey key: String) -> HotkeyTrigger? {
+        guard let stored = defaults.object(forKey: key) else {
+            return nil
+        }
+
+        // Try JSON data first (new format)
+        if let data = defaults.data(forKey: key),
+           let trigger = try? JSONDecoder().decode(HotkeyTrigger.self, from: data) {
+            return trigger
+        }
+
+        // Fall back to legacy plain string ("fn", "control", etc.)
+        if let raw = stored as? String, let trigger = legacyModifiers[raw] {
+            return trigger
+        }
+
+        return .fn
+    }
 }
 
 // MARK: - Equatable (canonical identity only)

@@ -48,11 +48,35 @@ public final class SettingsViewModel {
         }
     }
 
+    // Translation
+    public var translationEnabled: Bool {
+        didSet {
+            defaults.set(translationEnabled, forKey: AppPreferences.translationEnabledKey)
+        }
+    }
+    public var sourceLanguage: String {
+        didSet {
+            defaults.set(sourceLanguage, forKey: AppPreferences.sourceLanguageKey)
+        }
+    }
+    public var targetLanguage: String {
+        didSet {
+            defaults.set(targetLanguage, forKey: AppPreferences.targetLanguageKey)
+        }
+    }
+
     // Dictation
     public var hotkeyTrigger: HotkeyTrigger {
         didSet {
             hotkeyTrigger.save(to: defaults)
             NotificationCenter.default.post(name: Notification.Name("macparakeet.hotkeyTriggerDidChange"), object: nil)
+            Telemetry.send(.hotkeyCustomized)
+        }
+    }
+    public var translateHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            translateHotkeyTrigger.save(to: defaults, forKey: AppPreferences.translateHotkeyTriggerKey)
+            NotificationCenter.default.post(name: Notification.Name("macparakeet.translateHotkeyTriggerDidChange"), object: nil)
             Telemetry.send(.hotkeyCustomized)
         }
     }
@@ -158,6 +182,8 @@ public final class SettingsViewModel {
         showIdlePill = defaults.object(forKey: "showIdlePill") as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
+        translateHotkeyTrigger = HotkeyTrigger.load(from: defaults, forKey: AppPreferences.translateHotkeyTriggerKey)
+            ?? .chord(modifiers: ["option"], keyCode: 17)
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
@@ -165,6 +191,9 @@ public final class SettingsViewModel {
         saveDictationHistory = defaults.object(forKey: "saveDictationHistory") as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+        translationEnabled = defaults.object(forKey: AppPreferences.translationEnabledKey) as? Bool ?? false
+        sourceLanguage = defaults.string(forKey: AppPreferences.sourceLanguageKey) ?? Language.auto.rawValue
+        targetLanguage = defaults.string(forKey: AppPreferences.targetLanguageKey) ?? Language.english.rawValue
     }
 
     public func configure(

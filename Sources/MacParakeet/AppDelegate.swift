@@ -35,7 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var appEnvironment: AppEnvironment?
     private var hotkeyManager: HotkeyManager?
-    private var translateHotkeyManager: HotkeyManager?
+    /// Dictionary of translate HotkeyManagers keyed by config ID
+    private var translateHotkeyManagers: [UUID: HotkeyManager] = [:]
     private var dictationFlowCoordinator: DictationFlowCoordinator?
 
     // MARK: - ViewModels
@@ -55,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var onboardingObserver: Any?
     private var settingsObserver: Any?
     private var hotkeyTriggerObserver: Any?
-    private var translateHotkeyTriggerObserver: Any?
+    private var translateHotkeyConfigsObserver: Any?
     private var menuBarOnlyModeObserver: Any?
     private var showIdlePillObserver: Any?
     private var hotkeyMenuItem: NSMenuItem?
@@ -80,8 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupHotkey()
         observeOpenOnboarding()
         observeOpenSettings()
-        observeHotkeyTriggerChange()
-        observeTranslateHotkeyTriggerChange()
+        observeHotkeyTriggerAndTranslateHotkeysChange()
+        observeTranslateHotkeyConfigsChange()
         observeMenuBarOnlyModeChange()
         observeShowIdlePillChange()
         applyActivationPolicyFromSettings()
@@ -95,11 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // would send duplicate appQuit events and double the termination delay.
         dictationFlowCoordinator?.hideIdlePill()
         hotkeyManager?.stop()
-        translateHotkeyManager?.stop()
+        for manager in translateHotkeyManagers.values {
+            manager.stop()
+        }
         if let onboardingObserver { NotificationCenter.default.removeObserver(onboardingObserver) }
         if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
         if let hotkeyTriggerObserver { NotificationCenter.default.removeObserver(hotkeyTriggerObserver) }
-        if let translateHotkeyTriggerObserver { NotificationCenter.default.removeObserver(translateHotkeyTriggerObserver) }
+        if let translateHotkeyConfigsObserver { NotificationCenter.default.removeObserver(translateHotkeyConfigsObserver) }
         if let menuBarOnlyModeObserver { NotificationCenter.default.removeObserver(menuBarOnlyModeObserver) }
         if let showIdlePillObserver { NotificationCenter.default.removeObserver(showIdlePillObserver) }
         // Block briefly for STT cleanup (ANE/CoreML resource release).
@@ -486,34 +489,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             presentHotkeyUnavailableAlertIfNeeded()
         }
 
-        // Setup translate hotkey manager
-        translateHotkeyManager = HotkeyManager(trigger: settingsViewModel.translateHotkeyTrigger)
-        translateHotkeyManager?.onStartRecording = { [weak self] mode in
-            self?.dictationFlowCoordinator?.startDictation(mode: mode, trigger: .hotkeyTranslate)
-        }
-        translateHotkeyManager?.onStopRecording = { [weak self] in
-            self?.dictationFlowCoordinator?.stopDictation()
-        }
-        translateHotkeyManager?.onCancelRecording = { [weak self] in
-            self?.dictationFlowCoordinator?.cancelDictation(reason: .escape)
-        }
-        translateHotkeyManager?.onReadyForSecondTap = { [weak self] in
-            self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .hotkeyTranslate)
-        }
-        translateHotkeyManager?.onEscapeWhileIdle = { [weak self] in
-            self?.dictationFlowCoordinator?.dismissOverlayIfError()
-        }
-        if translateHotkeyManager?.start() == true {
-            // success
-        } else {
-            translateHotkeyManager = nil
-        }
+        // Setup translate hotkey managers
+        setupTranslateHotkeyManagers()
     }
 
     private func refreshHotkeyAfterPermissions() {
         hotkeyManager?.stop()
         hotkeyManager = nil
         setupHotkey()
+    }
+
+    private func setupTranslateHotkeyManagers() {
+        // Stop all existing managers
+        for manager in translateHotkeyManagers.values {
+            manager.stop()
+        }
+        translateHotkeyManagers.removeAll()
+
+        // Create a manager for each config
+        for config in settingsViewModel.translateHotkeyConfigs {
+            let manager = HotkeyManager(trigger: config.trigger)
+            manager.onStartRecording = { [weak self] mode in
+                guard let targetLang = Language(rawValue: config.targetLanguage) else { return }
+                self?.dictationFlowCoordinator?.startDictation(mode: mode, trigger: .hotkeyTranslate, targetLanguage: targetLang)
+            }
+            manager.onStopRecording = { [weak self] in
+                self?.dictationFlowCoordinator?.stopDictation()
+            }
+            manager.onCancelRecording = { [weak self] in
+                self?.dictationFlowCoordinator?.cancelDictation(reason: .escape)
+            }
+            manager.onReadyForSecondTap = { [weak self] in
+                guard let targetLang = Language(rawValue: config.targetLanguage) else { return }
+                self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .hotkeyTranslate, targetLanguage: targetLang)
+            }
+            manager.onEscapeWhileIdle = { [weak self] in
+                self?.dictationFlowCoordinator?.dismissOverlayIfError()
+            }
+            if manager.start() == true {
+                translateHotkeyManagers[config.id] = manager
+            }
+        }
     }
 
     private func observeOpenOnboarding() {
@@ -528,7 +544,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func observeHotkeyTriggerChange() {
+    private func observeHotkeyTriggerAndTranslateHotkeysChange() {
         hotkeyTriggerObserver = NotificationCenter.default.addObserver(
             forName: .macParakeetHotkeyTriggerDidChange,
             object: nil,
@@ -538,36 +554,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.hotkeyManager?.stop()
                 self?.hotkeyManager = nil
                 self?.setupHotkey()
+                // Also recreate translate hotkey managers with latest configs
+                self?.setupTranslateHotkeyManagers()
                 self?.hotkeyMenuItem?.title = self?.hotkeyMenuTitle ?? ""
             }
         }
     }
 
-    private func observeTranslateHotkeyTriggerChange() {
-        translateHotkeyTriggerObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name("macparakeet.translateHotkeyTriggerDidChange"),
+    private func observeTranslateHotkeyConfigsChange() {
+        translateHotkeyConfigsObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("macparakeet.translateHotkeyConfigsDidChange"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.translateHotkeyManager?.stop()
-                self?.translateHotkeyManager = HotkeyManager(trigger: self?.settingsViewModel.translateHotkeyTrigger ?? .current)
-                self?.translateHotkeyManager?.onStartRecording = { [weak self] mode in
-                    self?.dictationFlowCoordinator?.startDictation(mode: mode, trigger: .hotkeyTranslate)
-                }
-                self?.translateHotkeyManager?.onStopRecording = { [weak self] in
-                    self?.dictationFlowCoordinator?.stopDictation()
-                }
-                self?.translateHotkeyManager?.onCancelRecording = { [weak self] in
-                    self?.dictationFlowCoordinator?.cancelDictation()
-                }
-                self?.translateHotkeyManager?.onReadyForSecondTap = { [weak self] in
-                    self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .hotkeyTranslate)
-                }
-                self?.translateHotkeyManager?.onEscapeWhileIdle = { [weak self] in
-                    self?.dictationFlowCoordinator?.dismissOverlayIfError()
-                }
-                self?.translateHotkeyManager?.start()
+                self?.setupTranslateHotkeyManagers()
             }
         }
     }

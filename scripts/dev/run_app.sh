@@ -17,7 +17,7 @@ xcodebuild build \
   CODE_SIGN_IDENTITY="Apple Development" \
   DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-FYAF2ZD7RM}" \
   CODE_SIGNING_REQUIRED=YES \
-  CODE_SIGNING_ALLOWED=YES >/dev/null
+  CODE_SIGNING_ALLOWED=YES
 
 if [[ ! -x "$APP_BIN" ]]; then
   echo "Build succeeded but app binary not found at: $APP_BIN" >&2

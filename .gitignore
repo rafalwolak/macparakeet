@@ -69,5 +69,6 @@ coverage/
 
 # Local tool state / outputs
 .wrangler/
+.worktrees/
 output/
 tmp/

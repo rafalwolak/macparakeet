@@ -31,6 +31,7 @@ struct SettingsView: View {
                 headerCard
                 dictationCard
                 aiProviderCard
+                translationCard
                 storageCard
                 generalCard
                 updatesCard
@@ -227,6 +228,18 @@ struct SettingsView: View {
             icon: "brain"
         ) {
             LLMSettingsView(viewModel: llmSettingsViewModel)
+        }
+    }
+
+    // MARK: - Translation
+
+    private var translationCard: some View {
+        settingsCard(
+            title: "Translation",
+            subtitle: "Translate dictation and transcription output.",
+            icon: "character.bubble"
+        ) {
+            TranslationSettingsView(viewModel: viewModel)
         }
     }
 

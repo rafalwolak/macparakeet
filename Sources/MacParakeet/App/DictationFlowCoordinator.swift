@@ -429,7 +429,7 @@ final class DictationFlowCoordinator {
                     guard !Task.isCancelled else { return }
                     let bucket = self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-                    await self.clipboardService.copyToClipboard(transcript)
+                    await self.clipboardService.copyToClipboard(textToPaste)
                     self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
                 }
             }

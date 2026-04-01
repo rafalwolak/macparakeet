@@ -554,8 +554,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.hotkeyManager?.stop()
                 self?.hotkeyManager = nil
                 self?.setupHotkey()
-                // Also recreate translate hotkey managers with latest configs
-                self?.setupTranslateHotkeyManagers()
                 self?.hotkeyMenuItem?.title = self?.hotkeyMenuTitle ?? ""
             }
         }

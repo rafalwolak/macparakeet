@@ -202,7 +202,7 @@ struct SettingsView: View {
                                     }
                                 )) {
                                     ForEach(Language.targetLanguages, id: \.rawValue) { lang in
-                                        Text(lang.nativeName).tag(lang.rawValue)
+                                        Text("\(lang.displayName) (\(lang.nativeName))").tag(lang.rawValue)
                                     }
                                 }
                                 .frame(width: 140)

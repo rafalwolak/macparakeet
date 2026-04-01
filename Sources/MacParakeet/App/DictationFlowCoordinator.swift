@@ -47,8 +47,8 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
-    /// When true, translation is forced even if translationEnabled is false.
-    private var forceTranslation = false
+    /// When non-nil, translation is forced to this target language regardless of translationEnabled.
+    private var forceTranslationTarget: Language?
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
@@ -104,10 +104,11 @@ final class DictationFlowCoordinator {
 
     func startDictation(
         mode: FnKeyStateMachine.RecordingMode,
-        trigger: TelemetryDictationTrigger = .hotkey
+        trigger: TelemetryDictationTrigger = .hotkey,
+        targetLanguage: Language? = nil
     ) {
         currentTrigger = trigger
-        forceTranslation = (trigger == .hotkeyTranslate)
+        forceTranslationTarget = targetLanguage
         sendEvent(.startRequested(mode: mode))
     }
 
@@ -384,9 +385,10 @@ final class DictationFlowCoordinator {
                 var textToPaste = transcript
 
                 // Translate if enabled (before paste)
-                if self.forceTranslation || self.settingsViewModel.translationEnabled {
+                if self.forceTranslationTarget != nil || self.settingsViewModel.translationEnabled {
                     let sourceLang = Language(rawValue: self.settingsViewModel.sourceLanguage) ?? .auto
-                    let targetLang = Language(rawValue: self.settingsViewModel.targetLanguage) ?? .english
+                    // Use forced target language, or fall back to settings target language
+                    let targetLang = self.forceTranslationTarget ?? (Language(rawValue: self.settingsViewModel.targetLanguage) ?? .english)
                     if let translated = try? await self.translationService.translate(
                         text: textToPaste,
                         from: sourceLang,

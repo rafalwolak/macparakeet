@@ -31,6 +31,7 @@ struct SettingsView: View {
                 headerCard
                 dictationCard
                 aiProviderCard
+                translationCard
                 storageCard
                 generalCard
                 updatesCard
@@ -182,6 +183,18 @@ struct SettingsView: View {
                     HotkeyRecorderView(trigger: $viewModel.hotkeyTrigger)
                 }
 
+                if viewModel.translationEnabled {
+                    Divider()
+                    HStack(alignment: .center) {
+                        rowText(
+                            title: "Translate Hotkey",
+                            detail: "System-wide key used to start and stop translation."
+                        )
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        HotkeyRecorderView(trigger: $viewModel.translateHotkeyTrigger)
+                    }
+                }
+
                 Divider()
 
                 dictationModeGuide
@@ -227,6 +240,18 @@ struct SettingsView: View {
             icon: "brain"
         ) {
             LLMSettingsView(viewModel: llmSettingsViewModel)
+        }
+    }
+
+    // MARK: - Translation
+
+    private var translationCard: some View {
+        settingsCard(
+            title: "Translation",
+            subtitle: "Translate dictation and transcription output.",
+            icon: "character.bubble"
+        ) {
+            TranslationSettingsView(viewModel: viewModel)
         }
     }
 

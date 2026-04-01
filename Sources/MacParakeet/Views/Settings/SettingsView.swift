@@ -185,13 +185,45 @@ struct SettingsView: View {
 
                 if viewModel.translationEnabled {
                     Divider()
-                    HStack(alignment: .center) {
-                        rowText(
-                            title: "Translate Hotkey",
-                            detail: "System-wide key used to start and stop translation."
-                        )
-                        Spacer(minLength: DesignSystem.Spacing.md)
-                        HotkeyRecorderView(trigger: $viewModel.translateHotkeyTrigger)
+                    Section {
+                        ForEach(viewModel.translateHotkeyConfigs) { config in
+                            HStack {
+                                HotkeyRecorderView(trigger: Binding(
+                                    get: { config.trigger },
+                                    set: { newTrigger in
+                                        viewModel.updateTranslateHotkeyConfig(id: config.id, trigger: newTrigger)
+                                    }
+                                ))
+                                Spacer(minLength: DesignSystem.Spacing.md)
+                                Picker("Language", selection: Binding(
+                                    get: { config.targetLanguage },
+                                    set: { newLang in
+                                        viewModel.updateTranslateHotkeyConfig(id: config.id, targetLanguage: newLang)
+                                    }
+                                )) {
+                                    ForEach(Language.targetLanguages, id: \.rawValue) { lang in
+                                        Text(lang.nativeName).tag(lang.rawValue)
+                                    }
+                                }
+                                .frame(width: 140)
+                                Button {
+                                    viewModel.removeTranslateHotkeyConfig(id: config.id)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+
+                        Button {
+                            viewModel.addTranslateHotkeyConfig()
+                        } label: {
+                            Label("Add Translate Hotkey", systemImage: "plus.circle")
+                        }
+                    } header: {
+                        Text("Translate Hotkeys")
+                    } footer: {
+                        Text("Configure hotkeys for quick translation. Each hotkey translates from your source language to the selected target.")
                     }
                 }
 

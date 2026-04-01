@@ -17,6 +17,8 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case llmSummaryFailed = "llm_summary_failed"
     case llmChatUsed = "llm_chat_used"
     case llmChatFailed = "llm_chat_failed"
+    case translationUsed = "translation_used"
+    case translationFailed = "translation_failed"
     case historySearched = "history_searched"
     case historyReplayed = "history_replayed"
     case copyToClipboard = "copy_to_clipboard"
@@ -53,6 +55,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
 
 public enum TelemetryDictationTrigger: String, Sendable, Equatable {
     case hotkey
+    case hotkeyTranslate = "hotkey_translate"
     case pillClick = "pill_click"
     case menuBar = "menu_bar"
 }
@@ -115,6 +118,8 @@ public enum TelemetryEventSpec: Sendable {
     case llmSummaryFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, messageCount: Int)
     case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
+    case translationUsed(provider: String, sourceLang: String, targetLang: String, charCount: Int)
+    case translationFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case historySearched
     case historyReplayed
     case copyToClipboard(source: TelemetryCopySource)
@@ -173,6 +178,8 @@ extension TelemetryEventSpec {
         case .llmSummaryFailed: return .llmSummaryFailed
         case .llmChatUsed: return .llmChatUsed
         case .llmChatFailed: return .llmChatFailed
+        case .translationUsed: return .translationUsed
+        case .translationFailed: return .translationFailed
         case .historySearched: return .historySearched
         case .historyReplayed: return .historyReplayed
         case .copyToClipboard: return .copyToClipboard
@@ -281,6 +288,12 @@ extension TelemetryEventSpec {
             var props = ["provider": provider, "error_type": errorType]
             if let errorDetail { props["error_detail"] = errorDetail }
             return props
+        case .translationUsed(let provider, let sourceLang, let targetLang, let charCount):
+            return ["provider": provider, "source_lang": sourceLang, "target_lang": targetLang, "char_count": "\(charCount)"]
+        case .translationFailed(let provider, let errorType, let errorDetail):
+            var props = ["provider": provider, "error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .copyToClipboard(let source):
             return ["source": source.rawValue]
         case .processingModeChanged(let mode):
@@ -378,6 +391,8 @@ public enum TelemetryImplementedContract {
         .llmSummaryFailed: ["provider", "error_type"],
         .llmChatUsed: ["provider", "message_count"],
         .llmChatFailed: ["provider", "error_type"],
+        .translationUsed: ["provider", "source_lang", "target_lang", "char_count"],
+        .translationFailed: ["provider", "error_type"],
         .historySearched: [],
         .historyReplayed: [],
         .copyToClipboard: ["source"],

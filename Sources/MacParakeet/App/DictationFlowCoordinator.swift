@@ -22,6 +22,7 @@ final class DictationFlowCoordinator {
     private let entitlementsService: EntitlementsService
     private let dictationRepo: DictationRepository
     private let settingsViewModel: SettingsViewModel
+    private let translationService: TranslationServiceProtocol
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
     private let onPresentEntitlementsAlert: (Error) -> Void
@@ -46,6 +47,8 @@ final class DictationFlowCoordinator {
 
     /// Telemetry trigger for the current dictation flow.
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
+    /// When true, translation is forced even if translationEnabled is false.
+    private var forceTranslation = false
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
@@ -59,6 +62,7 @@ final class DictationFlowCoordinator {
         entitlementsService: EntitlementsService,
         dictationRepo: DictationRepository,
         settingsViewModel: SettingsViewModel,
+        translationService: TranslationServiceProtocol,
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onHistoryReload: @escaping () -> Void,
         onPresentEntitlementsAlert: @escaping (Error) -> Void
@@ -68,6 +72,7 @@ final class DictationFlowCoordinator {
         self.entitlementsService = entitlementsService
         self.dictationRepo = dictationRepo
         self.settingsViewModel = settingsViewModel
+        self.translationService = translationService
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
@@ -102,6 +107,7 @@ final class DictationFlowCoordinator {
         trigger: TelemetryDictationTrigger = .hotkey
     ) {
         currentTrigger = trigger
+        forceTranslation = (trigger == .hotkeyTranslate)
         sendEvent(.startRequested(mode: mode))
     }
 
@@ -373,13 +379,29 @@ final class DictationFlowCoordinator {
                 return
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
+
             actionTask = Task { @MainActor in
+                var textToPaste = transcript
+
+                // Translate if enabled (before paste)
+                if self.forceTranslation || self.settingsViewModel.translationEnabled {
+                    let sourceLang = Language(rawValue: self.settingsViewModel.sourceLanguage) ?? .auto
+                    let targetLang = Language(rawValue: self.settingsViewModel.targetLanguage) ?? .english
+                    if let translated = try? await self.translationService.translate(
+                        text: textToPaste,
+                        from: sourceLang,
+                        to: targetLang
+                    ) {
+                        textToPaste = translated
+                    }
+                }
+
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
 
                 do {
-                    try await self.clipboardService.pasteText(transcript + " ")
+                    try await self.clipboardService.pasteText(textToPaste + " ")
                     guard !Task.isCancelled else { return }
 
                     // Save pastedToApp metadata

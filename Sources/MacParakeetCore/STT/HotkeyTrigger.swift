@@ -307,7 +307,8 @@ public struct HotkeyTrigger: Sendable {
             return trigger
         }
 
-        return .fn
+        // Legacy string not found in modifiers
+        return nil
     }
 }
 
